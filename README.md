@@ -32,32 +32,45 @@ read balances → plan → (refuel | sweep | hold | alert) → Sentinel gate →
 ```
 
 - **refuel** — gas dropped below the floor → buy gas back up to target from USDC
-- **sweep** — idle USDC above the working threshold → move surplus into yield
+- **sweep** — idle USDC above the working threshold → subscribe it into pALPHA yield
+- **reclaim** — working USDC ran low → submit a pALPHA redemption request; USDC returns after the queue
 - **hold** — balances are within policy, or a sweep wouldn't pay for itself
-- **alert** — gas is low but refueling would breach the hard USDC reserve
+- **alert** — gas is low, USDC is at the hard reserve, and a redemption is already queued
 
 A profitability guardrail (default ≥ 1.5× the action's gas cost) stops the agent
 from churning fees on unprofitable moves.
+
+### Yield venue: pALPHA (Ember Protocol)
+
+The yield side models **[pALPHA](https://port.pharos.xyz/)**, the RealFi vault on
+Pharos built on Ember Protocol — and it models it *accurately*: pALPHA is
+**request-based**, not an instant pool. A sweep **subscribes** USDC into the
+vault; pulling capital back is a **redemption request** that queues and pays out
+USDC after the redemption window (days on mainnet). Reserve tracks the pending
+redemption and only acts once it clears — so the agent respects pALPHA's real
+mechanics instead of assuming instant liquidity.
 
 ## Run locally
 
 No install required — the SDK and demo are dependency-free and run on Node 18+.
 
 ```
-npm test     # 9 tests, Node's built-in runner
-npm run demo # autonomous metabolism loop: sweep idle USDC, refuel before empty
+npm test     # 14 tests, Node's built-in runner
+npm run demo # autonomous metabolism: subscribe to pALPHA, refuel, redeem on demand
 npm run mcp  # start the stdio MCP server
 ```
 
 Example demo output:
 
 ```
-t 1  SWEEP   gas 0.05 | USDC $500 | yield $0      swept $400 to yield
-t 4  REFUEL  gas 0    | USDC $100 | yield $401.2  +0.05 PHRS for $0.005
-t 7  REFUEL  gas 0    | USDC $100 | yield $402.4  +0.05 PHRS for $0.005
+t 1  SWEEP   gas 0.05 | USDC $500    | pALPHA $0     | pending $0     subscribed $400 to pALPHA
+t 5  RECLAIM gas 0.03 | USDC $39.99  | pALPHA $400   | pending $0     redemption request $200 (ready in 2 ticks)
+t 6  HOLD    gas 0.01 | USDC $24.99  | pALPHA $200   | pending $200
+t 7  REFUEL  gas 0    | USDC $209.99 | pALPHA $200   | pending $0     +0.05 PHRS for $0.005
 ```
 
-The agent never runs out of gas and puts its idle reserves to work — on its own.
+The agent funds its own gas, earns on idle reserves in pALPHA, and redeems
+capital back through the queue when it needs it — on its own.
 
 ## Tools
 
@@ -66,7 +79,8 @@ The agent never runs out of gas and puts its idle reserves to work — on its ow
 | `reserve_status` | Read the agent's gas, USDC, and yield balances. |
 | `reserve_plan` | Decide the next action (refuel / sweep / hold / alert) from policy. |
 | `reserve_refuel` | Top up gas from USDC when low — Sentinel-gated. |
-| `reserve_sweep` | Move idle USDC above the threshold into yield — Sentinel-gated. |
+| `reserve_sweep` | Subscribe idle USDC above the threshold into pALPHA — Sentinel-gated. |
+| `reserve_reclaim` | Submit a pALPHA redemption request when working USDC is low — Sentinel-gated. |
 | `reserve_run_metabolism` | Run the autonomous loop for N ticks. |
 
 ### SDK usage
@@ -109,6 +123,12 @@ PRIVATE_KEY=0x... npm run mcp
   needs a swap venue (DEX); the simulation adapter demonstrates the full loop
   offline. The core stays zero-dependency; the live adapter uses `ethers`.
 
+**pALPHA on mainnet.** The yield venue models pALPHA (Ember Protocol), which runs
+on **Pharos mainnet (chain `1672`)** with a real subscribe → redeem-request →
+USDC-payout flow. The live adapter is documented to target the Ember vault there;
+because pALPHA settles real funds over a multi-day window, the request-based
+behavior is demonstrated faithfully in simulation rather than on testnet.
+
 ## Safety model
 
 Reserve never executes a write unless the Sentinel gate returns `approve`. It
@@ -121,7 +141,7 @@ security scanning (no shell-out, no filesystem abuse, no key handling).
 
 ```
 .
-├── sdk/            # zero-dep treasury SDK (chain, policy, sentinel, reserve) + live adapter
+├── sdk/            # zero-dep treasury SDK (chain, policy, sentinel, reserve, yield) + live adapter
 ├── mcp/server.js   # stdio MCP server exposing the tools
 ├── demos/run.js    # autonomous metabolism demo
 ├── test/           # Node built-in test suite

@@ -16,6 +16,7 @@ import {
   reservePlan,
   refuel,
   sweep,
+  reclaim,
   runMetabolism,
   ReserveSimulationAdapter,
 } from "../sdk/index.js";
@@ -60,9 +61,15 @@ const TOOLS = [
   },
   {
     name: "reserve_sweep",
-    description: "Move idle USDC above the working threshold into yield. Sentinel-gated; acts only when profitable.",
+    description: "Subscribe idle USDC above the working threshold into pALPHA yield. Sentinel-gated; acts only when profitable.",
     inputSchema: { type: "object", properties: { policy: { type: "object" } } },
     run: (a) => sweep({ adapter, policy: a.policy }),
+  },
+  {
+    name: "reserve_reclaim",
+    description: "Submit a redemption request to the pALPHA yield venue when working USDC is low. Sentinel-gated; funds return after the venue's queue.",
+    inputSchema: { type: "object", properties: { policy: { type: "object" } } },
+    run: (a) => reclaim({ adapter, policy: a.policy }),
   },
   {
     name: "reserve_run_metabolism",

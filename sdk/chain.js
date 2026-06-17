@@ -5,6 +5,8 @@
 // deterministic in-memory simulation so the skill runs offline with zero
 // dependencies; swap in the RPC adapter for real Pharos balances.
 
+import { PalphaVenue } from "./yield.js";
+
 export const PHAROS = {
   testnet: {
     name: "pharos-testnet",
@@ -43,11 +45,13 @@ export class ReserveAdapter {
 }
 
 // Deterministic in-memory treasury for offline demos and tests. Models an agent
-// that burns gas as it works and earns yield on swept reserves.
+// that burns gas as it works, spends on operations, and parks idle USDC in a
+// request-based yield venue (pALPHA) it can redeem from when it needs capital.
 export class ReserveSimulationAdapter extends ReserveAdapter {
   constructor({
-    gasPhrs = 0.05, usdcUsd = 200, yieldUsd = 0,
-    phrsPriceUsd = 0.1, gasBurnPerTick = 0.02, yieldPerTickUsd = 0.5,
+    gasPhrs = 0.05, usdcUsd = 200,
+    phrsPriceUsd = 0.1, gasBurnPerTick = 0.02, opCostPerTickUsd = 0,
+    venue = new PalphaVenue(),
     network = PHAROS.atlantic, self = "0x1111111111111111111111111111111111111111",
   } = {}) {
     super();
@@ -55,10 +59,10 @@ export class ReserveSimulationAdapter extends ReserveAdapter {
     this._self = self;
     this.phrsPriceUsd = phrsPriceUsd;
     this.gasBurnPerTick = gasBurnPerTick;
-    this.yieldPerTickUsd = yieldPerTickUsd;
+    this.opCostPerTickUsd = opCostPerTickUsd;
+    this.venue = venue;
     this._gas = gasPhrs;
     this._usdc = usdcUsd;
-    this._yield = yieldUsd;
     this._tx = 0;
   }
 
@@ -67,7 +71,12 @@ export class ReserveSimulationAdapter extends ReserveAdapter {
   _txHash() { this._tx += 1; return "0xsim" + String(this._tx).padStart(60, "0"); }
 
   async balances() {
-    return { gasPhrs: round(this._gas), usdcUsd: round(this._usdc, 2), yieldUsd: round(this._yield, 2) };
+    return {
+      gasPhrs: round(this._gas),
+      usdcUsd: round(this._usdc, 2),
+      yieldUsd: this.venue.depositedUsd,
+      pendingRedeemUsd: this.venue.pendingUsd(),
+    };
   }
 
   // Buy PHRS gas with USDC at the configured price.
@@ -79,17 +88,27 @@ export class ReserveSimulationAdapter extends ReserveAdapter {
     return { txHash: this._txHash(), refueledPhrs: round(amountPhrs), spentUsd };
   }
 
-  // Move surplus USDC into the yield position.
+  // Subscribe surplus USDC into the yield venue (pALPHA).
   async sweep({ amountUsd }) {
     if (this._usdc < amountUsd) throw new Error("insufficient USDC to sweep");
     this._usdc -= amountUsd;
-    this._yield += amountUsd;
-    return { txHash: this._txHash(), sweptUsd: round(amountUsd, 2) };
+    const res = this.venue.subscribe(amountUsd);
+    return { txHash: this._txHash(), sweptUsd: round(amountUsd, 2), ...res };
   }
 
-  // Advance one unit of time: the agent burns gas, the yield position accrues.
+  // Submit a redemption request to the venue — USDC arrives after the queue.
+  async reclaim({ amountUsd }) {
+    const res = this.venue.requestRedeem(amountUsd);
+    return { txHash: this._txHash(), ...res };
+  }
+
+  // Advance one unit of time: burn gas, pay operating costs, accrue yield, and
+  // credit any matured redemptions back to USDC.
   async tick() {
     this._gas = Math.max(0, round(this._gas - this.gasBurnPerTick));
-    if (this._yield > 0) this._yield = round(this._yield + this.yieldPerTickUsd, 2);
+    if (this.opCostPerTickUsd) this._usdc = Math.max(0, round(this._usdc - this.opCostPerTickUsd, 2));
+    this.venue.tick();
+    const matured = this.venue.claimMatured();
+    if (matured > 0) this._usdc = round(this._usdc + matured, 2);
   }
 }

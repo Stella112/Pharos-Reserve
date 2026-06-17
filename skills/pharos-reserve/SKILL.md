@@ -18,17 +18,26 @@ treasury so it can run indefinitely with no human refills.
 ## Capabilities
 
 - **Refuel** — buy gas (PHRS) from USDC when it drops below the floor, up to a target.
-- **Sweep** — move idle USDC above a working threshold into yield, only when it pays for itself (≥ 1.5× the action's gas cost).
-- **Hold / Alert** — hold within policy; alert when refueling would breach the hard USDC reserve.
+- **Sweep** — subscribe idle USDC above a working threshold into pALPHA (Ember Protocol) yield, only when it pays for itself (≥ 1.5× the action's gas cost).
+- **Reclaim** — submit a pALPHA redemption request when working USDC runs low; USDC returns after the venue's queue.
+- **Hold / Alert** — hold within policy; alert when refueling would breach the hard reserve and a redemption is already queued.
 - **Metabolism loop** — run the read → plan → act cycle autonomously for N ticks.
 
 ## Tools
 
-- `reserve_status` — gas, USDC, and yield balances.
-- `reserve_plan` — the next action from policy: refuel / sweep / hold / alert.
+- `reserve_status` — gas, USDC, pALPHA position, and pending redemptions.
+- `reserve_plan` — the next action from policy: refuel / reclaim / sweep / hold / alert.
 - `reserve_refuel` — Sentinel-gated gas top-up.
-- `reserve_sweep` — Sentinel-gated surplus-to-yield.
+- `reserve_sweep` — Sentinel-gated subscribe-to-pALPHA.
+- `reserve_reclaim` — Sentinel-gated pALPHA redemption request.
 - `reserve_run_metabolism` — the autonomous loop.
+
+## Yield venue
+
+Models **pALPHA** (Ember Protocol) on Pharos — a request-based RealFi vault:
+subscribe to deposit, redemption-request to withdraw (queued, pays USDC after the
+window). Live adapter targets the Ember vault on Pharos mainnet (`1672`); the
+request flow is demonstrated in simulation.
 
 ## Policy (defaults)
 

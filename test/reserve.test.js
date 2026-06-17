@@ -6,8 +6,10 @@ import {
   reviewAction,
   refuel,
   sweep,
+  reclaim,
   runMetabolism,
   ReserveSimulationAdapter,
+  PalphaVenue,
 } from "../sdk/index.js";
 
 test("plan: gas below floor -> refuel", () => {
@@ -67,4 +69,46 @@ test("metabolism keeps the agent solvent across many ticks", async () => {
   // Despite burning gas every tick, the reserve refuels it back — never stuck at 0 USDC.
   assert.ok(b.usdcUsd > 5);
   assert.ok(log.some((e) => e.action === "refuel"));
+});
+
+test("pALPHA venue: subscribe, request redeem, claim after the queue", () => {
+  const v = new PalphaVenue({ redeemDelayTicks: 2 });
+  v.subscribe(300);
+  assert.equal(v.depositedUsd, 300);
+  const r = v.requestRedeem(120);
+  assert.equal(r.requestedUsd, 120);
+  assert.equal(v.pendingUsd(), 120);
+  assert.equal(v.claimMatured(), 0); // not ready until the window passes
+  v.tick();
+  v.tick();
+  assert.equal(v.claimMatured(), 120);
+  assert.equal(v.pendingUsd(), 0);
+});
+
+test("plan: low working USDC with yield -> reclaim", () => {
+  const p = planReserve({ gasPhrs: 0.05, usdcUsd: 20, yieldUsd: 400, pendingRedeemUsd: 0 });
+  assert.equal(p.action, "reclaim");
+  assert.ok(p.reclaimUsd > 0);
+});
+
+test("plan: low USDC but a redemption is already queued -> hold", () => {
+  const p = planReserve({ gasPhrs: 0.05, usdcUsd: 20, yieldUsd: 400, pendingRedeemUsd: 200 });
+  assert.equal(p.action, "hold");
+});
+
+test("reclaim submits a redemption request to the venue", async () => {
+  const a = new ReserveSimulationAdapter({ gasPhrs: 0.05, usdcUsd: 20, venue: new PalphaVenue({ redeemDelayTicks: 2 }) });
+  a.venue.subscribe(400);
+  const r = await reclaim({ adapter: a });
+  assert.equal(r.executed, true);
+  assert.ok(r.requestedUsd > 0);
+  assert.ok((await a.balances()).pendingRedeemUsd > 0);
+});
+
+test("metabolism redeems from pALPHA and the USDC returns after the queue", async () => {
+  const a = new ReserveSimulationAdapter({ gasPhrs: 0.05, usdcUsd: 500, opCostPerTickUsd: 15, venue: new PalphaVenue({ redeemDelayTicks: 2 }) });
+  const log = await runMetabolism({ adapter: a, ticks: 8 });
+  assert.ok(log.some((e) => e.action === "sweep"));
+  assert.ok(log.some((e) => e.action === "reclaim"));
+  assert.ok((await a.balances()).usdcUsd > 50); // capital came back through the queue
 });

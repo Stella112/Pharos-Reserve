@@ -2,9 +2,11 @@
 //
 // Reads the agent's real gas (native PHRS) and USDC balances from Pharos, so
 // `reserve_status` and `reserve_plan` operate on live on-chain data. A sweep is
-// a real USDC transfer to a configurable yield/treasury address. Gas refuel
-// needs a swap venue (DEX) and is left to the deployment — the simulation
-// adapter demonstrates the full autonomous loop offline.
+// a real USDC transfer to a configurable yield/treasury address — set it to the
+// pALPHA (Ember Protocol) vault on Pharos mainnet (chain 1672) for real RealFi
+// yield. Gas refuel needs a swap venue (DEX) and is left to the deployment; the
+// simulation adapter demonstrates the full autonomous loop (including pALPHA's
+// request-based redemption queue) offline.
 //
 // Requires `ethers` (npm i ethers). The key is injected by the runtime and lives
 // only here — never in the browser, never in the repo.
