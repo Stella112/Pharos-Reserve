@@ -1,0 +1,32 @@
+{
+  "name": "pharos-reserve",
+  "version": "0.1.0",
+  "description": "Autonomous treasury for AI agents — keeps an agent solvent and productive on Pharos, gated by Sentinel.",
+  "type": "module",
+  "license": "MIT",
+  "main": "sdk/index.js",
+  "exports": {
+    ".": "./sdk/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test",
+    "demo": "node demos/run.js",
+    "mcp": "node mcp/server.js"
+  },
+  "optionalDependencies": {
+    "ethers": "^6.13.0"
+  },
+  "keywords": [
+    "pharos",
+    "treasury",
+    "x402",
+    "ai-agents",
+    "agent-skill",
+    "mcp",
+    "autonomous",
+    "realfi"
+  ]
+}
