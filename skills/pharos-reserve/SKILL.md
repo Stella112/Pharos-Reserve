@@ -1,13 +1,14 @@
 ---
 name: pharos-reserve
-description: Autonomous treasury for AI agents on Pharos — monitors the agent's own gas and USDC, refuels gas before it runs dry, sweeps idle reserves into yield, and refuses to breach a hard reserve. Use when an agent must stay solvent and productive without human top-ups. Every action is Sentinel-gated; the skill never handles private keys.
+description: Autonomous treasury for AI agents on Pharos — monitors gas, USDC, pALPHA yield reserves, and x402/MaaS compute runway; refuels gas and inference credits before they run dry; sweeps idle reserves into yield; and refuses to breach hard policy limits. Use when an agent must stay solvent, funded, and productive without human top-ups. Every action is Sentinel-gated; the skill never handles private keys.
 ---
 
 # Pharos Reserve
 
 The execution-fuel layer of the agent-finance stack. Where Clearing House
 *spends*, Reserve keeps the agent *able* to spend: it manages the agent's own
-treasury so it can run indefinitely with no human refills.
+treasury so it can run indefinitely with no human refills, including the
+compute credits it needs to keep calling models.
 
 ## Prerequisites
 
@@ -26,9 +27,27 @@ treasury so it can run indefinitely with no human refills.
 | "get capital back", "redeem from pALPHA", "working balance is low" | SDK `reserve_reclaim` → pALPHA redeem request | → [references/reserve.md#reclaim-from-palpha](../../references/reserve.md#reclaim-from-palpha) |
 | "run autonomously", "keep me solvent", "metabolism loop" | SDK `reserve_run_metabolism` | → [references/reserve.md#metabolism-loop](../../references/reserve.md#metabolism-loop) |
 
+## x402 Compute Reserve
+
+Use the compute reserve when an agent needs to keep model-call capacity online.
+It monitors inference credit, estimates runway in minutes, and prepares capped
+x402/MaaS payment intents when runway drops below policy.
+
+Tools:
+
+- `reserve_compute_status` - inference credit, burn rate, runway minutes, and health.
+- `reserve_plan_compute_refuel` - plan a capped x402/MaaS compute refuel.
+- `reserve_refuel_compute` - Sentinel-gated x402/MaaS payment intent for inference credits.
+
+Default policy: `computeFloorMinutes 30`, `computeTargetMinutes 120`,
+`prosDiscountPct 20`, `maxComputeRefuelUsd 100`, approved endpoint
+`pharos-maas`. The module prepares intents and fails closed; real x402 payment
+execution remains with the caller or Clearing House.
+
 ## When to use
 
 - An autonomous agent needs to keep gas above a floor to keep transacting.
+- An autonomous agent needs to keep inference credits above a runway floor so it can keep thinking.
 - Idle stablecoin should be put to work (yield) instead of sitting dead.
 - You want a safe, policy-bounded "metabolism" loop, not ad-hoc transfers.
 
@@ -48,6 +67,12 @@ treasury so it can run indefinitely with no human refills.
 - `reserve_sweep` — Sentinel-gated subscribe-to-pALPHA.
 - `reserve_reclaim` — Sentinel-gated pALPHA redemption request.
 - `reserve_run_metabolism` — the autonomous loop.
+
+Compute tools are also available:
+
+- `reserve_compute_status` - inference credit, burn rate, runway minutes, and health.
+- `reserve_plan_compute_refuel` - plan a capped x402/MaaS compute refuel.
+- `reserve_refuel_compute` - Sentinel-gated x402/MaaS payment intent for inference credits.
 
 ## Yield venue
 

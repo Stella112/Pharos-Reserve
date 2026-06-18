@@ -51,6 +51,7 @@ export class ReserveSimulationAdapter extends ReserveAdapter {
   constructor({
     gasPhrs = 0.05, usdcUsd = 200,
     phrsPriceUsd = 0.1, gasBurnPerTick = 0.02, opCostPerTickUsd = 0,
+    computeCreditUsd = 5, computeBurnPerTickUsd = 0.8,
     venue = new PalphaVenue(),
     network = PHAROS.atlantic, self = "0x1111111111111111111111111111111111111111",
   } = {}) {
@@ -60,9 +61,11 @@ export class ReserveSimulationAdapter extends ReserveAdapter {
     this.phrsPriceUsd = phrsPriceUsd;
     this.gasBurnPerTick = gasBurnPerTick;
     this.opCostPerTickUsd = opCostPerTickUsd;
+    this.computeBurnPerTickUsd = computeBurnPerTickUsd;
     this.venue = venue;
     this._gas = gasPhrs;
     this._usdc = usdcUsd;
+    this._computeCreditUsd = computeCreditUsd;
     this._tx = 0;
   }
 
@@ -76,6 +79,7 @@ export class ReserveSimulationAdapter extends ReserveAdapter {
       usdcUsd: round(this._usdc, 2),
       yieldUsd: this.venue.depositedUsd,
       pendingRedeemUsd: this.venue.pendingUsd(),
+      computeCreditUsd: round(this._computeCreditUsd, 2),
     };
   }
 
@@ -102,11 +106,26 @@ export class ReserveSimulationAdapter extends ReserveAdapter {
     return { txHash: this._txHash(), ...res };
   }
 
+  // Prepare and simulate an x402/MaaS compute refuel. The SDK returns a payment
+  // intent; production runtimes decide whether/how to execute it.
+  async refuelCompute({ refuelCreditUsd, paymentUsd, paymentIntent }) {
+    if (this._usdc < paymentUsd) throw new Error("insufficient USDC to fund compute refuel intent");
+    this._usdc -= paymentUsd;
+    this._computeCreditUsd += refuelCreditUsd;
+    return {
+      txHash: this._txHash(),
+      x402Intent: paymentIntent,
+      computeCreditAddedUsd: round(refuelCreditUsd, 4),
+      spentUsd: round(paymentUsd, 4),
+    };
+  }
+
   // Advance one unit of time: burn gas, pay operating costs, accrue yield, and
   // credit any matured redemptions back to USDC.
   async tick() {
     this._gas = Math.max(0, round(this._gas - this.gasBurnPerTick));
     if (this.opCostPerTickUsd) this._usdc = Math.max(0, round(this._usdc - this.opCostPerTickUsd, 2));
+    this._computeCreditUsd = Math.max(0, round(this._computeCreditUsd - this.computeBurnPerTickUsd, 2));
     this.venue.tick();
     const matured = this.venue.claimMatured();
     if (matured > 0) this._usdc = round(this._usdc + matured, 2);

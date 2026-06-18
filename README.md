@@ -10,6 +10,12 @@ move cleared by a Sentinel gate.
 
 It is the metabolism of an autonomous agent: earn, settle, refuel, repeat.
 
+New in this module: **x402 Compute Reserve**. Reserve also tracks inference
+runway so an agent does not go dark when model-call credits run low. It prepares
+capped x402/MaaS payment intents for compute refuels, applies the configured
+PROS discount policy, and fails closed if the endpoint or spend amount is
+outside policy.
+
 ## Where it fits
 
 Pharos Reserve is the counterweight to settlement in a full agent-finance stack:
@@ -18,6 +24,9 @@ Pharos Reserve is the counterweight to settlement in a full agent-finance stack:
 - **Atlas Council** decides and gates
 - **Clearing House** settles (spends)
 - **Reserve** keeps the agent solvent (replenishes)
+
+With the x402 Compute Reserve module, Reserve replenishes four operating
+buckets: gas, working USDC, yield liquidity, and model-call runway.
 
 Clearing House moves money out; Reserve makes sure there's always gas and a
 working balance to move it with. Together they let an agent run indefinitely
@@ -40,6 +49,10 @@ read balances → plan → (refuel | sweep | hold | alert) → Sentinel gate →
 A profitability guardrail (default ≥ 1.5× the action's gas cost) stops the agent
 from churning fees on unprofitable moves.
 
+Compute refuel is part of the same loop: if inference runway drops below the
+configured floor, Reserve prepares a capped x402/MaaS payment intent before the
+agent runs out of model-call capacity.
+
 ### Yield venue: pALPHA (Ember Protocol)
 
 The yield side models **[pALPHA](https://port.pharos.xyz/)**, the RealFi vault on
@@ -55,8 +68,9 @@ mechanics instead of assuming instant liquidity.
 No install required — the SDK and demo are dependency-free and run on Node 18+.
 
 ```
-npm test     # 14 tests, Node's built-in runner
+npm test     # 19 tests, Node's built-in runner
 npm run demo # autonomous metabolism: subscribe to pALPHA, refuel, redeem on demand
+npm run demo:compute # x402 compute reserve: plan and refill inference credits
 npm run mcp  # start the stdio MCP server
 ```
 
@@ -82,6 +96,9 @@ capital back through the queue when it needs it — on its own.
 | `reserve_sweep` | Subscribe idle USDC above the threshold into pALPHA — Sentinel-gated. |
 | `reserve_reclaim` | Submit a pALPHA redemption request when working USDC is low — Sentinel-gated. |
 | `reserve_run_metabolism` | Run the autonomous loop for N ticks. |
+| `reserve_compute_status` | Read inference credit, burn rate, runway minutes, and health. |
+| `reserve_plan_compute_refuel` | Plan a capped x402/MaaS compute refuel. |
+| `reserve_refuel_compute` | Prepare a Sentinel-gated x402/MaaS payment intent for inference credits. |
 
 ### SDK usage
 
@@ -90,6 +107,18 @@ import { ReserveSimulationAdapter, runMetabolism } from "pharos-reserve";
 
 const agent = new ReserveSimulationAdapter({ gasPhrs: 0.05, usdcUsd: 500 });
 await runMetabolism({ adapter: agent, ticks: 10 });
+```
+
+### x402 Compute Reserve
+
+The compute module keeps an agent from going dark when model-call credits run
+low. It estimates inference runway, applies the configured PROS discount policy,
+and prepares a capped x402/MaaS payment intent. It does not execute real token
+transfers or handle private keys; production runtimes can route the intent
+through Clearing House or an approved x402 paymaster.
+
+```bash
+npm run demo:compute
 ```
 
 ### MCP usage — call it from an AI agent

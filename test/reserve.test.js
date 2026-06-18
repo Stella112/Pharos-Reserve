@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   planReserve,
+  planComputeReserve,
+  computeStatusFromBalances,
+  computePlan,
+  refuelCompute,
   reviewAction,
   refuel,
   sweep,
@@ -111,4 +115,47 @@ test("metabolism redeems from pALPHA and the USDC returns after the queue", asyn
   assert.ok(log.some((e) => e.action === "sweep"));
   assert.ok(log.some((e) => e.action === "reclaim"));
   assert.ok((await a.balances()).usdcUsd > 50); // capital came back through the queue
+});
+
+test("compute: low runway -> x402 refuel intent with PROS discount", () => {
+  const p = planComputeReserve(
+    { usdcUsd: 100, computeCreditUsd: 0.1 },
+    { burnUsdPerMinute: 0.01, computeFloorMinutes: 30, computeTargetMinutes: 120, prosDiscountPct: 20 },
+  );
+  assert.equal(p.action, "refuel_compute");
+  assert.equal(p.paymentIntent.protocol, "x402");
+  assert.equal(p.paymentIntent.payAsset, "PROS");
+  assert.ok(p.discountUsd > 0);
+});
+
+test("compute: enough runway -> hold", () => {
+  const p = planComputeReserve(
+    { usdcUsd: 100, computeCreditUsd: 10 },
+    { burnUsdPerMinute: 0.01, computeFloorMinutes: 30, computeTargetMinutes: 120 },
+  );
+  assert.equal(p.action, "hold");
+});
+
+test("compute: unapproved MaaS endpoint -> alert", () => {
+  const p = planComputeReserve(
+    { usdcUsd: 100, computeCreditUsd: 0 },
+    { maaSEndpoint: "unknown-maas", approvedMaaSEndpoints: ["pharos-maas"] },
+  );
+  assert.equal(p.action, "alert");
+});
+
+test("compute: refuel executes in simulation and raises compute credits", async () => {
+  const a = new ReserveSimulationAdapter({ usdcUsd: 100, computeCreditUsd: 0.1 });
+  const before = await computeStatusFromBalances(await a.balances(), { burnUsdPerMinute: 0.01 });
+  const r = await refuelCompute({ adapter: a, policy: { burnUsdPerMinute: 0.01, computeFloorMinutes: 30, computeTargetMinutes: 120 } });
+  const after = await computeStatusFromBalances(await a.balances(), { burnUsdPerMinute: 0.01 });
+  assert.equal(r.executed, true);
+  assert.ok(after.computeCreditUsd > before.computeCreditUsd);
+});
+
+test("compute plan includes balances for agent clients", async () => {
+  const a = new ReserveSimulationAdapter({ usdcUsd: 100, computeCreditUsd: 0.1 });
+  const p = await computePlan({ adapter: a, policy: { burnUsdPerMinute: 0.01 } });
+  assert.ok(p.balances);
+  assert.equal(p.action, "refuel_compute");
 });

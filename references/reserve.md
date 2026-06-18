@@ -130,3 +130,49 @@ npm run demo            # offline metabolism with pALPHA yield
 **Agent Guidelines.**
 1. Run on a schedule (per block, per minute, or per task).
 2. Each action is independently Sentinel-gated; a blocked action halts only that step.
+
+---
+
+## x402-compute-reserve
+
+**Overview.** Keep an agent's model-call capacity online. The compute reserve
+estimates inference spend, calculates runway in minutes, and prepares a capped
+x402/MaaS payment intent when credits fall below the floor.
+
+**SDK / MCP tools.**
+
+| Tool | Description |
+| --- | --- |
+| `reserve_compute_status` | Read inference credit, estimated burn, runway, and health. |
+| `reserve_plan_compute_refuel` | Decide whether to hold, refuel compute, reclaim from yield, or alert. |
+| `reserve_refuel_compute` | Prepare a Sentinel-gated x402/MaaS payment intent and simulate the refuel. |
+
+**Default policy.**
+
+```json
+{
+  "computeFloorMinutes": 30,
+  "computeTargetMinutes": 120,
+  "prosDiscountPct": 20,
+  "maxComputeRefuelUsd": 100,
+  "maaSEndpoint": "pharos-maas",
+  "approvedMaaSEndpoints": ["pharos-maas", "zan-maas", "x402-paymaster"]
+}
+```
+
+**Decision outputs.**
+
+| Action | Meaning |
+| --- | --- |
+| `hold` | Runway is above the floor. |
+| `refuel_compute` | Working USDC can safely fund a capped x402/MaaS compute refill. |
+| `reclaim_for_compute` | Working USDC is low but yield can be reclaimed before compute refuel. |
+| `alert` | Endpoint is unapproved or funding would breach reserve policy. |
+
+**Agent Guidelines.**
+
+1. Treat compute refuels as value-moving intents, even when they are not executed by this SDK.
+2. Do not call unapproved MaaS endpoints.
+3. Do not exceed `maxComputeRefuelUsd`.
+4. Route real payments through Clearing House or an approved x402 paymaster.
+5. Re-read runway after a refuel and keep the payment receipt with the agent's accountability log.

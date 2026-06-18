@@ -6,6 +6,7 @@
 
 import { reviewAction, isApproved } from "./sentinel.js";
 import { planReserve } from "./policy.js";
+import { computeStatusFromBalances, planComputeReserve } from "./compute.js";
 
 export async function reserveStatus({ adapter }) {
   const b = await adapter.balances();
@@ -15,6 +16,38 @@ export async function reserveStatus({ adapter }) {
 export async function reservePlan({ adapter, policy }) {
   const balances = await adapter.balances();
   return { ...planReserve(balances, policy), balances };
+}
+
+export async function computeStatus({ adapter, policy }) {
+  const balances = await adapter.balances();
+  return { network: adapter.network.name, self: adapter.self, ...computeStatusFromBalances(balances, policy), balances };
+}
+
+export async function computePlan({ adapter, policy }) {
+  const balances = await adapter.balances();
+  return { ...planComputeReserve(balances, policy), balances };
+}
+
+// Prepare a Sentinel-gated x402/MaaS payment intent to refill inference credits.
+export async function refuelCompute({ adapter, policy, signer }) {
+  const balances = await adapter.balances();
+  const plan = planComputeReserve(balances, policy);
+  if (plan.action !== "refuel_compute") {
+    return { kind: "refuel_compute", executed: false, reason: `no compute refuel (${plan.action})`, plan };
+  }
+
+  const verdict = reviewAction(
+    { type: "reserve_compute_refuel", network: adapter.network.name, amountUsd: plan.paymentUsd, isWrite: false, contractKnown: true, userConfirmed: true },
+    policy
+  );
+  if (!isApproved(verdict)) return { kind: "refuel_compute", executed: false, sentinel: verdict.decision, reasons: verdict.reasons };
+
+  if (typeof adapter.refuelCompute !== "function") {
+    return { kind: "refuel_compute", executed: false, sentinel: "approve", reason: "adapter does not implement compute refuel execution", paymentIntent: plan.paymentIntent };
+  }
+
+  const res = await adapter.refuelCompute({ ...plan, signer });
+  return { kind: "refuel_compute", executed: true, sentinel: "approve", network: adapter.network.name, ...res, reason: plan.reason };
 }
 
 // Top up gas from USDC when the agent is running low.
@@ -75,11 +108,14 @@ export async function runMetabolism({ adapter, policy, ticks = 1, onTick } = {})
   const log = [];
   for (let i = 0; i < ticks; i++) {
     const balances = await adapter.balances();
-    const plan = planReserve(balances, policy);
+    const compute = planComputeReserve(balances, policy);
+    const plan = ["refuel_compute", "reclaim_for_compute", "alert"].includes(compute.action) ? compute : planReserve(balances, policy);
     const entry = { tick: i + 1, action: plan.action, reason: plan.reason, balances };
     if (plan.action === "refuel") entry.exec = await refuel({ adapter, policy });
     else if (plan.action === "sweep") entry.exec = await sweep({ adapter, policy });
     else if (plan.action === "reclaim") entry.exec = await reclaim({ adapter, policy });
+    else if (plan.action === "reclaim_for_compute") entry.exec = await reclaim({ adapter, policy });
+    else if (plan.action === "refuel_compute") entry.exec = await refuelCompute({ adapter, policy });
     log.push(entry);
     if (onTick) onTick(entry);
     if (adapter.tick) await adapter.tick();

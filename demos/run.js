@@ -38,6 +38,7 @@ async function main() {
         if (e.action === "sweep") x = `subscribed $${e.exec.sweptUsd} to pALPHA`;
         else if (e.action === "reclaim") x = `redemption request $${e.exec.requestedUsd} (ready in ${e.exec.etaTicks} ticks)`;
         else if (e.action === "refuel") x = `+${e.exec.refueledPhrs} PHRS for $${e.exec.spentUsd}`;
+        else if (e.action === "refuel_compute") x = `x402 compute +$${e.exec.computeCreditAddedUsd} credit for $${e.exec.spentUsd} via ${e.exec.x402Intent.payAsset}`;
       }
       const b = e.balances;
       line(`  t${e.tick.toString().padStart(2)}  ${tag} gas ${b.gasPhrs} | USDC $${b.usdcUsd} | pALPHA $${b.yieldUsd} | pending $${b.pendingRedeemUsd}   ${x}`);
@@ -46,7 +47,7 @@ async function main() {
 
   const sf = await reserveStatus({ adapter: agent });
   line(`\nEnd    : gas ${sf.gasPhrs} PHRS | USDC $${sf.usdcUsd} | in pALPHA $${sf.yieldUsd} | pending $${sf.pendingRedeemUsd}`);
-  line("\nResult: the agent funded its own gas, earned on idle reserves in pALPHA, and");
+  line("\nResult: the agent funded its own gas, refilled compute runway, earned on idle reserves in pALPHA, and");
   line("redeemed capital back through the queue when it needed it — fully autonomous.");
 }
 

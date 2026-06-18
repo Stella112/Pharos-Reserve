@@ -14,6 +14,9 @@
 import {
   reserveStatus,
   reservePlan,
+  computeStatus,
+  computePlan,
+  refuelCompute,
   refuel,
   sweep,
   reclaim,
@@ -52,6 +55,24 @@ const TOOLS = [
     description: "Decide the next reserve action (refuel / sweep / hold / alert) from current balances and policy.",
     inputSchema: { type: "object", properties: { policy: { type: "object" } } },
     run: (a) => reservePlan({ adapter, policy: a.policy }),
+  },
+  {
+    name: "reserve_compute_status",
+    description: "Read the agent's compute reserve: inference credit, burn rate, runway minutes, and health.",
+    inputSchema: { type: "object", properties: { policy: { type: "object" } } },
+    run: (a) => computeStatus({ adapter, policy: a.policy }),
+  },
+  {
+    name: "reserve_plan_compute_refuel",
+    description: "Plan a capped x402/MaaS compute refuel when inference runway falls below policy.",
+    inputSchema: { type: "object", properties: { policy: { type: "object" } } },
+    run: (a) => computePlan({ adapter, policy: a.policy }),
+  },
+  {
+    name: "reserve_refuel_compute",
+    description: "Prepare and simulate a Sentinel-gated x402/MaaS payment intent to refill inference credits.",
+    inputSchema: { type: "object", properties: { policy: { type: "object" } } },
+    run: (a) => refuelCompute({ adapter, policy: a.policy }),
   },
   {
     name: "reserve_refuel",
