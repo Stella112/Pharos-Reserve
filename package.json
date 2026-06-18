@@ -17,7 +17,7 @@
     "mcp": "node mcp/server.js"
   },
   "optionalDependencies": {
-    "ethers": "^6.13.0"
+    "ethers": "^6.17.0"
   },
   "keywords": [
     "pharos",
