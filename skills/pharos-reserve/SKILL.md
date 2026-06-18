@@ -9,6 +9,23 @@ The execution-fuel layer of the agent-finance stack. Where Clearing House
 *spends*, Reserve keeps the agent *able* to spend: it manages the agent's own
 treasury so it can run indefinitely with no human refills.
 
+## Prerequisites
+
+- **Foundry** (`cast`) to read live balances on-chain, or **Node 18+** for the SDK / MCP server.
+- A funded operating wallet (PHRS + USDC). The key stays in the caller's shell (`$PRIVATE_KEY`); the skill never reads or stores it.
+- Network, USDC, and pALPHA addresses resolve from `assets/networks.json`.
+
+## Capability Index
+
+| User Need | Capability | Detailed Instructions |
+| --- | --- | --- |
+| "check my treasury", "how much gas / USDC do I have", "am I solvent" | `cast balance` + `cast call balanceOf` | → [references/reserve.md#read-treasury](../../references/reserve.md#read-treasury) |
+| "what should I do next", "plan my treasury", "is anything needed" | SDK `reserve_plan` (policy engine) | → [references/reserve.md#plan-the-next-action](../../references/reserve.md#plan-the-next-action) |
+| "refuel gas", "I'm running low on gas" | SDK `reserve_refuel` | → [references/reserve.md#refuel-gas](../../references/reserve.md#refuel-gas) |
+| "put idle USDC to work", "sweep to yield", "deposit into pALPHA" | SDK `reserve_sweep` → pALPHA subscribe | → [references/reserve.md#sweep-to-palpha](../../references/reserve.md#sweep-to-palpha) |
+| "get capital back", "redeem from pALPHA", "working balance is low" | SDK `reserve_reclaim` → pALPHA redeem request | → [references/reserve.md#reclaim-from-palpha](../../references/reserve.md#reclaim-from-palpha) |
+| "run autonomously", "keep me solvent", "metabolism loop" | SDK `reserve_run_metabolism` | → [references/reserve.md#metabolism-loop](../../references/reserve.md#metabolism-loop) |
+
 ## When to use
 
 - An autonomous agent needs to keep gas above a floor to keep transacting.

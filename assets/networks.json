@@ -1,0 +1,26 @@
+{
+  "default": "pharos-atlantic-testnet",
+  "networks": {
+    "pharos-atlantic-testnet": {
+      "chainId": 688689,
+      "rpcUrl": "https://atlantic.dplabs-internal.com",
+      "explorer": "https://atlantic.pharosscan.xyz",
+      "nativeToken": "PHRS",
+      "contracts": {
+        "USDC": "0xcfc8330f4bcab529c625d12781b1c19466a9fc8b"
+      },
+      "usdcDecimals": 6
+    },
+    "pharos-mainnet": {
+      "chainId": 1672,
+      "explorer": "https://www.pharosscan.xyz",
+      "nativeToken": "PROS",
+      "yieldVenue": {
+        "name": "pALPHA (Ember Protocol)",
+        "type": "request-based-vault",
+        "app": "https://port.pharos.xyz/",
+        "notes": "Subscribe to deposit; redeem is a queued withdraw request paid out in USDC after the window."
+      }
+    }
+  }
+}
