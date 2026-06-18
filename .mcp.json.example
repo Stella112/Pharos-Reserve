@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "pharos-reserve": {
+      "command": "node",
+      "args": ["./mcp/server.js"],
+      "env": {
+        "PRIVATE_KEY": "0x...optional, enables real on-chain balance reads...",
+        "PHAROS_TESTNET_RPC": "https://atlantic.dplabs-internal.com",
+        "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+      }
+    }
+  }
+}
